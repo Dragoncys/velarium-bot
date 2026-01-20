@@ -2,9 +2,17 @@ import discord
 from discord.ext import commands
 import os
 from dotenv import load_dotenv
+import ssl
+import aiohttp
+import certifi
 
 # Load environment variables
 load_dotenv()
+
+# SSL configuration using certifi certificates
+ssl_context = ssl.create_default_context(cafile=certifi.where())
+ssl_context.check_hostname = True
+ssl_context.verify_mode = ssl.CERT_REQUIRED
 
 # Bot setup
 intents = discord.Intents.default()
@@ -30,12 +38,16 @@ async def load_cogs():
             print(f"Loaded cog: {filename}")
 
 async def main():
-    async with bot:
-        await load_cogs()
-        TOKEN = os.getenv("DISCORD_TOKEN")
-        if not TOKEN:
-            raise ValueError("DISCORD_TOKEN not found in .env file!")
-        await bot.start(TOKEN)
+    # Create custom connector with certifi SSL context
+    connector = aiohttp.TCPConnector(ssl=ssl_context)
+    async with aiohttp.ClientSession(connector=connector) as session:
+        async with bot:
+            bot.http._session = session  
+            await load_cogs()
+            TOKEN = os.getenv("DISCORD_TOKEN")
+            if not TOKEN:
+                raise ValueError("DISCORD_TOKEN not found in .env file!")
+            await bot.start(TOKEN)
 
 if __name__ == "__main__":
     import asyncio
