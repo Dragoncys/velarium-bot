@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 import ssl
 import aiohttp
 import certifi
+from fastapi import FastAPI
+import uvicorn
+from uvicorn import Config, Server
 
 # Load environment variables
 load_dotenv()
@@ -20,6 +23,13 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix=",", intents=intents)
+
+# FastAPI app for health check
+app = FastAPI()
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "bot_ready": bot.is_ready()}
 
 @bot.event
 async def on_ready():
@@ -47,7 +57,16 @@ async def main():
             TOKEN = os.getenv("DISCORD_TOKEN")
             if not TOKEN:
                 raise ValueError("DISCORD_TOKEN not found in .env file!")
-            await bot.start(TOKEN)
+            
+            # Start FastAPI server
+            config = Config(app, host="0.0.0.0", port=8000)
+            server = Server(config)
+            
+            # Run both concurrently
+            await asyncio.gather(
+                server.serve(),
+                bot.start(TOKEN)
+            )
 
 if __name__ == "__main__":
     import asyncio
